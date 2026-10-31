@@ -1,0 +1,1178 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font-size:14px}img{max-width:100%}[hidden]{display:none!important}</style>
+</head>
+<body>
+<title>OBD Dump</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: one narrow column of numbered work steps, like a shop diagnostic sheet. Live gauges sit in the logging step. */
+:root {
+  --bg: #e9edf1;
+  --panel: #ffffff;
+  --ink: #15202b;
+  --muted: #5a6876;
+  --line: #cfd7df;
+  --accent: #c96f00;
+  --accent-ink: #ffffff;
+  --accent-soft: #fbecd6;
+  --good: #2c7a47;
+  --warn: #a96b00;
+  --bad: #b5352a;
+  --track: #dde3e9;
+  --f-display: "Barlow Condensed", "Arial Narrow", "Helvetica Neue", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", -apple-system, "Segoe UI", Roboto, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e141a; --panel: #172029; --ink: #e5ebf0; --muted: #91a0ae; --line: #2a3642;
+    --accent: #f0a032; --accent-ink: #1b1204; --accent-soft: #3a2a12;
+    --good: #5cc283; --warn: #e3b043; --bad: #f07a6e; --track: #24303b;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e141a; --panel: #172029; --ink: #e5ebf0; --muted: #91a0ae; --line: #2a3642;
+  --accent: #f0a032; --accent-ink: #1b1204; --accent-soft: #3a2a12;
+  --good: #5cc283; --warn: #e3b043; --bad: #f07a6e; --track: #24303b;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 48px;
+}
+.wrap { max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+header { display: flex; flex-direction: column; gap: 4px; padding-bottom: 4px; }
+h1 { font-family: var(--f-display); font-weight: 700; font-size: 40px; line-height: 1; margin: 0; letter-spacing: 0.01em; text-wrap: balance; }
+h1 .lamp { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--accent); margin-right: 10px; vertical-align: 6px; box-shadow: 0 0 0 4px var(--accent-soft); }
+.sub { color: var(--muted); margin: 0; max-width: 60ch; }
+section { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+h2 { font-family: var(--f-display); font-weight: 600; font-size: 24px; line-height: 1.1; margin: 0; display: flex; align-items: baseline; gap: 10px; }
+h2 .n { font-family: var(--f-mono); font-size: 13px; font-weight: 500; color: var(--muted); letter-spacing: 0.06em; }
+p { margin: 0; }
+.hint { color: var(--muted); font-size: 14px; }
+label { font-size: 13px; font-weight: 600; letter-spacing: 0.03em; text-transform: uppercase; color: var(--muted); }
+.field { display: flex; flex-direction: column; gap: 4px; }
+input[type=text], textarea {
+  width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 8px; padding: 10px 12px;
+}
+textarea { min-height: 70px; resize: vertical; }
+input:focus-visible, textarea:focus-visible, button:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+button {
+  font: 600 15px var(--f-body); border-radius: 8px; padding: 11px 16px; border: 1px solid var(--line);
+  background: var(--panel); color: var(--ink); cursor: pointer; min-height: 44px;
+}
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+button.danger { color: var(--bad); }
+button:disabled { opacity: 0.45; cursor: not-allowed; }
+.chip { display: inline-flex; align-items: center; gap: 6px; font: 500 13px var(--f-mono); padding: 4px 10px; border-radius: 999px; background: var(--track); color: var(--ink); }
+.chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.chip[data-s=ok]::before { background: var(--good); }
+.chip[data-s=busy]::before { background: var(--warn); }
+.chip[data-s=bad]::before { background: var(--bad); }
+.msg { font-size: 14px; padding: 10px 12px; border-radius: 8px; background: var(--accent-soft); color: var(--ink); }
+.msg.bad { background: transparent; border: 1px solid var(--bad); color: var(--bad); }
+.steps { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.steps li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; padding: 9px 0; border-bottom: 1px solid var(--line); align-items: start; }
+.steps .ic { width: 16px; height: 16px; margin-top: 3px; border-radius: 50%; border: 2px solid var(--line); }
+.steps li[data-s=run] .ic { border-color: var(--warn); border-top-color: transparent; animation: spin 0.9s linear infinite; }
+.steps li[data-s=done] .ic { border-color: var(--good); background: var(--good); }
+.steps li[data-s=fail] .ic { border-color: var(--bad); background: var(--bad); }
+.steps .t { font-weight: 500; }
+.steps .d { display: block; font: 13px var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .steps li[data-s=run] .ic { animation: none; } }
+.codes { display: flex; flex-wrap: wrap; gap: 6px; }
+.code { font: 600 15px var(--f-mono); padding: 4px 9px; border-radius: 6px; border: 1px solid var(--bad); color: var(--bad); }
+.code.p { border-color: var(--warn); color: var(--warn); }
+.phase { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.phase[data-active="1"] { border-color: var(--accent); }
+.phase .head { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.phase h3 { font-family: var(--f-display); font-weight: 600; font-size: 20px; margin: 0; }
+.phase .state { font: 13px var(--f-mono); color: var(--muted); }
+.bar { height: 6px; background: var(--track); border-radius: 3px; overflow: hidden; }
+.bar > i { display: block; height: 100%; width: 0; background: var(--accent); transition: width 0.4s; }
+.gauges { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.g { background: var(--bg); border-radius: 8px; padding: 10px 12px; min-width: 0; }
+.g .k { font-size: 12px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+.g .v { font-family: var(--f-display); font-weight: 700; font-size: 34px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.g .u { font: 13px var(--f-mono); color: var(--muted); margin-left: 4px; }
+.trims { display: flex; flex-direction: column; gap: 10px; }
+.trim { display: grid; grid-template-columns: 92px 1fr 64px; gap: 10px; align-items: center; }
+.trim .k { font: 500 13px var(--f-mono); color: var(--muted); }
+.trim .val { font: 600 15px var(--f-mono); text-align: right; font-variant-numeric: tabular-nums; }
+.scale { position: relative; height: 18px; background: var(--track); border-radius: 4px; }
+.scale::before { content: ""; position: absolute; left: 50%; top: -3px; bottom: -3px; width: 2px; background: var(--muted); transform: translateX(-1px); }
+.scale > i { position: absolute; top: 3px; bottom: 3px; border-radius: 2px; background: var(--good); }
+.scale > i[data-z=warn] { background: var(--warn); }
+.scale > i[data-z=bad] { background: var(--bad); }
+.scale-legend { display: flex; justify-content: space-between; font: 12px var(--f-mono); color: var(--muted); padding-left: 102px; padding-right: 74px; }
+details summary { cursor: pointer; font-weight: 600; }
+pre { font: 12px/1.45 var(--f-mono); background: var(--bg); padding: 10px; border-radius: 8px; overflow-x: auto; max-height: 280px; overflow-y: auto; margin: 8px 0 0; white-space: pre; }
+#copyBox { font: 12px var(--f-mono); min-height: 160px; }
+.banner { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; border: 1px solid var(--bad); background: var(--panel); border-radius: 10px; padding: 12px 14px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.banner p { color: var(--bad); font-weight: 600; }
+.k-note { font-size: 13px; color: var(--muted); }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1><span class="lamp" aria-hidden="true"></span>OBD Dump</h1>
+    <p class="sub">Reads every standard OBD-II value from your Bluetooth LE adapter, logs fuel trims and O2 sensors at idle and 2500 RPM, and packs it all into one report for Claude. Read only: it never clears codes.</p>
+  </header>
+
+  <div class="banner" id="discBanner" hidden>
+    <p>Adapter disconnected.</p>
+    <button class="primary" id="btnReconnect" type="button">Reconnect</button>
+  </div>
+
+  <div class="msg" id="recoverMsg" hidden></div>
+
+  <section aria-labelledby="h-car">
+    <h2 id="h-car"><span class="n">01</span>The car</h2>
+    <div class="field"><label for="vehicle">Year, make, model, engine</label>
+      <input type="text" id="vehicle" placeholder="e.g. 2012 Honda Civic 1.8L" autocomplete="off"></div>
+    <div class="field"><label for="symptoms">Symptoms and notes</label>
+      <textarea id="symptoms" placeholder="e.g. smells of fuel, black soot at tailpipe, mileage dropped from 30 to 22 mpg"></textarea></div>
+  </section>
+
+  <section aria-labelledby="h-conn">
+    <h2 id="h-conn"><span class="n">02</span>Connect</h2>
+    <p class="hint">Plug the adapter in. Start the engine and let it warm up fully (about 10 minutes). Close any other OBD app first, because only one app can use the adapter.</p>
+    <div class="row">
+      <button class="primary" id="btnConnect" type="button">Connect adapter</button>
+      <span class="chip" id="connChip" data-s="">Not connected</span>
+    </div>
+    <p class="k-note" id="connInfo"></p>
+    <div class="msg bad" id="connErr" hidden></div>
+  </section>
+
+  <section aria-labelledby="h-scan">
+    <h2 id="h-scan"><span class="n">03</span>Full scan</h2>
+    <p class="hint">Starts by itself once connected. Takes about one to two minutes.</p>
+    <ul class="steps" id="steps"></ul>
+    <div id="glance" hidden>
+      <div class="codes" id="codes"></div>
+    </div>
+    <div class="row"><button id="btnScan" type="button" disabled>Run full scan again</button></div>
+  </section>
+
+  <section aria-labelledby="h-live">
+    <h2 id="h-live"><span class="n">04</span>Live logging</h2>
+    <p class="hint">Keep this app open and the screen on while it logs. You can repeat any phase; the new run replaces the old one.</p>
+    <div id="phases"></div>
+    <div id="gaugePanel" hidden>
+      <div class="gauges" id="gauges"></div>
+      <div class="trims" id="trims" style="margin-top:12px"></div>
+      <div class="scale-legend" aria-hidden="true"><span>−25 rich</span><span>0</span><span>lean +25</span></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="h-send">
+    <h2 id="h-send"><span class="n">05</span>Send to Claude</h2>
+    <p class="hint" id="sizeNote">No data yet.</p>
+    <div class="row">
+      <button class="primary" id="btnSaveClaude" type="button" disabled>Save to Claude</button>
+      <button id="btnSaveFile" type="button" disabled>Save file</button>
+      <button id="btnCopy" type="button" disabled>Copy report</button>
+    </div>
+    <div class="msg" id="saveMsg" hidden></div>
+    <textarea id="copyBox" hidden readonly aria-label="Report text"></textarea>
+    <div class="row"><button class="danger" id="btnReset" type="button">Start a new report</button></div>
+  </section>
+
+  <section aria-labelledby="h-raw">
+    <details>
+      <summary id="h-raw">Adapter log</summary>
+      <pre id="rawlog">Nothing yet.</pre>
+    </details>
+  </section>
+</div>
+
+<script id="core">
+// ===== Core logic. No page access. Same rules as obd_dump.py on the Mac. =====
+const Core = (() => {
+  const HEX_RE = /^[0-9A-F]+$/;
+  const PROTOCOLS = {
+    "1": "SAE J1850 PWM", "2": "SAE J1850 VPW", "3": "ISO 9141-2",
+    "4": "ISO 14230-4 KWP (5 baud init)", "5": "ISO 14230-4 KWP (fast init)",
+    "6": "ISO 15765-4 CAN (11 bit, 500 kbaud)", "7": "ISO 15765-4 CAN (29 bit, 500 kbaud)",
+    "8": "ISO 15765-4 CAN (11 bit, 250 kbaud)", "9": "ISO 15765-4 CAN (29 bit, 250 kbaud)",
+    "A": "SAE J1939 CAN", "B": "User1 CAN", "C": "User2 CAN",
+  };
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const hexToBytes = (h) => { const a = []; for (let i = 0; i + 1 < h.length; i += 2) a.push(parseInt(h.substr(i, 2), 16)); return a; };
+  const bytesToHex = (b) => b.map((x) => x.toString(16).padStart(2, "0")).join("").toUpperCase();
+  const h2 = (n) => n.toString(16).toUpperCase().padStart(2, "0");
+  function isoLocal(d = new Date()) {
+    const p = (n) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+  }
+
+  // CAN: header + data. Data starts with ISO-TP PCI byte. Join frames per ECU.
+  function parseCan(hx, hlen) {
+    const frames = new Map();
+    for (const h of hx) {
+      if (h.length <= hlen) continue;
+      const hdr = h.slice(0, hlen), data = h.slice(hlen);
+      if (data.length % 2) continue;
+      if (!frames.has(hdr)) frames.set(hdr, []);
+      frames.get(hdr).push(hexToBytes(data));
+    }
+    const out = {};
+    for (const [ecu, fl] of frames) {
+      const msgs = []; let cur = null, need = 0;
+      for (const b of fl) {
+        const t = b[0] >> 4, n = b[0] & 15;
+        if (t === 0 && n > 0 && n <= 7) msgs.push(b.slice(1, 1 + n));
+        else if (t === 1 && b.length >= 2) { need = (n << 8) | b[1]; cur = b.slice(2); }
+        else if (t === 2 && cur) { cur = cur.concat(b.slice(1)); if (cur.length >= need) { msgs.push(cur.slice(0, need)); cur = null; } }
+        else if (t >= 3) msgs.push(b);
+      }
+      if (cur) msgs.push(cur);
+      out[ecu] = msgs;
+    }
+    return out;
+  }
+  // Old protocols: 3 header bytes + data + 1 checksum byte.
+  function parseLegacy(hx) {
+    const out = {};
+    for (const h of hx) {
+      if (h.length % 2 || h.length < 10) continue;
+      const b = hexToBytes(h), ecu = h2(b[2]);
+      (out[ecu] = out[ecu] || []).push(b.slice(3, -1));
+    }
+    return out;
+  }
+  // Headers off fallback. Cannot split ECUs.
+  function parseNoHeader(hx) {
+    const msgs = []; let cur = null, need = 0;
+    for (const h of hx) {
+      const m = h.match(/^([0-9A-F]):([0-9A-F]+)$/);
+      if (h.length === 3 && HEX_RE.test(h)) { if (cur) msgs.push(cur.slice(0, need)); cur = []; need = parseInt(h, 16); }
+      else if (m && cur) { const d = m[2]; cur = cur.concat(hexToBytes(d.slice(0, Math.floor(d.length / 2) * 2))); }
+      else if (HEX_RE.test(h) && h.length % 2 === 0) { if (cur) { msgs.push(cur.slice(0, need)); cur = null; } msgs.push(hexToBytes(h)); }
+    }
+    if (cur) msgs.push(cur.slice(0, need));
+    return msgs.length ? { ECU: msgs } : {};
+  }
+
+  class ELM {
+    constructor(t, transcript) { this.t = t; this.transcript = transcript; this.record = true; this.proto = null; this.headers = true; this.onRaw = null; }
+    async cmd(c, timeout = 4000) {
+      this.t.clear();
+      await this.t.write(c + "\r");
+      const raw = await this.t.readUntilPrompt(timeout);
+      const txt = raw.replace(/>/g, "").replace(/\x00/g, "");
+      const cc = c.replace(/ /g, "").toUpperCase();
+      const lines = txt.split(/[\r\n]+/).map((s) => s.trim()).filter(Boolean)
+        .filter((l) => l.replace(/ /g, "").toUpperCase() !== cc);
+      if (!raw.includes(">")) lines.push("<TIMEOUT>");
+      if (this.record) this.transcript.push({ cmd: c, resp: lines });
+      if (this.onRaw) this.onRaw(c, lines);
+      return lines;
+    }
+    isCan() { return ["6", "7", "8", "9", "B", "C"].includes(this.proto); }
+    async query(c, timeout = 4000) {
+      const lines = await this.cmd(c, timeout);
+      let hx = lines.map((l) => l.replace(/ /g, "").toUpperCase());
+      if (!this.headers) return parseNoHeader(hx);
+      hx = hx.filter((h) => HEX_RE.test(h));
+      if (this.isCan()) return parseCan(hx, this.proto === "7" || this.proto === "9" ? 8 : 3);
+      return parseLegacy(hx);
+    }
+    async init(log) {
+      await this.t.write("\r"); await sleep(500);
+      let r = await this.cmd("ATZ", 6000);
+      if (!r.some((l) => l.toUpperCase().includes("ELM"))) await this.cmd("ATWS", 4000);
+      for (const c of ["ATE0", "ATL0", "ATS0", "ATAT1"]) await this.cmd(c);
+      this.headers = (await this.cmd("ATH1")).some((l) => l.toUpperCase().includes("OK"));
+      const info = { port: this.t.name };
+      info.ATI = (await this.cmd("ATI")).join(" ");
+      info["AT@1"] = (await this.cmd("AT@1")).join(" ");
+      info.voltage_at_start = (await this.cmd("ATRV")).join(" ");
+      info.headers_on = this.headers;
+      await this.cmd("ATSP0");
+      if (log) log("Finding the car's protocol (up to 25 s)…");
+      r = await this.cmd("0100", 25000);
+      if (!r.some((l) => HEX_RE.test(l.replace(/ /g, "").toUpperCase()))) {
+        if (log) log("No answer yet. Trying once more…");
+        await sleep(2000);
+        r = await this.cmd("0100", 25000);
+      }
+      info.first_0100_reply = r;
+      let p = (await this.cmd("ATDPN")).join(" ").trim().toUpperCase();
+      if (p.length === 2 && p[0] === "A") p = p[1];
+      if (PROTOCOLS[p]) this.proto = p;
+      else {
+        this.proto = null;
+        for (const l of r) {
+          const h = l.replace(/ /g, "").toUpperCase();
+          if (h.startsWith("18DA")) this.proto = "7";
+          else if (h.startsWith("7E") && h.length % 2) this.proto = "6";
+        }
+        this.proto = this.proto || "3";
+        info.protocol_guessed = true;
+      }
+      info.protocol_number = this.proto;
+      info.protocol_name = PROTOCOLS[this.proto] || "?";
+      info.protocol_text = (await this.cmd("ATDP")).join(" ");
+      return info;
+    }
+    async supported(mode, skip, suffix = "") {
+      const res = {}, m = parseInt(mode, 16);
+      for (let base = 0; base <= 0xe0; base += 0x20) {
+        const r = await this.query(mode + h2(base) + suffix);
+        let more = false;
+        for (const [ecu, msgs] of Object.entries(r)) {
+          for (const p of msgs) {
+            if (p.length >= skip + 4 && p[0] === 0x40 + m && p[1] === base) {
+              const mask = ((p[skip] << 24) >>> 0) + (p[skip + 1] << 16) + (p[skip + 2] << 8) + p[skip + 3];
+              const s = (res[ecu] = res[ecu] || new Set());
+              for (let i = 0; i < 32; i++) if (Math.floor(mask / 2 ** (31 - i)) % 2) s.add(base + i + 1);
+              if (mask % 2) more = true;
+            }
+          }
+        }
+        if (!more) break;
+      }
+      const out = {};
+      for (const [e, s] of Object.entries(res)) out[e] = [...s].sort((a, b) => a - b);
+      return out;
+    }
+  }
+
+  // ===== PID decoders (SAE J1979). Each gives list of [label, value, unit]. =====
+  const rnd = (x, n = 2) => { const p = 10 ** n; return Math.round(x * p) / p; };
+  const pct = (a) => rnd((a * 100) / 255, 1);
+  const trim = (a) => rnd(((a - 128) * 100) / 128, 2);
+  const u16 = (d, i = 0) => d[i] * 256 + d[i + 1];
+  const s16 = (d, i = 0) => { const v = u16(d, i); return v >= 32768 ? v - 65536 : v; };
+  const one = (v, u = "") => [["", v, u]];
+  const dtcStr = (a, b) => "PCBU"[a >> 6] + ((a >> 4) & 3) + (a & 15).toString(16).toUpperCase() + h2(b);
+  const FUEL_SYS = { 0: "not used", 1: "open loop: engine cold", 2: "closed loop: O2 feedback", 4: "open loop: load or decel", 8: "open loop: system fault", 16: "closed loop: O2 sensor fault" };
+  const FUEL_TYPE = { 1: "gasoline", 2: "methanol", 3: "ethanol", 4: "diesel", 5: "LPG", 6: "CNG", 7: "propane", 8: "electric", 9: "bifuel gasoline", 16: "hybrid gasoline" };
+  const SPARK_MON = ["catalyst", "heated catalyst", "evap system", "secondary air", "A/C refrigerant", "O2 sensor", "O2 sensor heater", "EGR/VVT"];
+  const DIESEL_MON = ["NMHC catalyst", "NOx/SCR", "reserved", "boost pressure", "reserved", "exhaust gas sensor", "PM filter", "EGR/VVT"];
+  const fs = (v) => (v in FUEL_SYS ? FUEL_SYS[v] : v);
+
+  function decMonitor(d, withMil) {
+    if (d.length < 4) throw new Error("short data");
+    const [a, b, c, dd] = d, out = [];
+    if (withMil) { out.push(["MIL on", !!(a & 0x80), ""]); out.push(["DTC count", a & 0x7f, ""]); }
+    const diesel = !!(b & 0x08);
+    out.push(["engine type", diesel ? "diesel" : "spark", ""]);
+    ["misfire", "fuel system", "components"].forEach((n, i) => { if ((b >> i) & 1) out.push([n, (b >> (i + 4)) & 1 ? "incomplete" : "complete", ""]); });
+    (diesel ? DIESEL_MON : SPARK_MON).forEach((n, i) => { if ((c >> i) & 1) out.push([n, (dd >> i) & 1 ? "incomplete" : "complete", ""]); });
+    return out;
+  }
+  const fPct = (d) => one(pct(d[0]), "%");
+  const fTrim = (d) => one(trim(d[0]), "%");
+  const fTemp = (d) => one(d[0] - 40, "C");
+  const fCat = (d) => one(rnd(u16(d) / 10 - 40, 1), "C");
+  const fSensors = (four) => (d) => {
+    const s = [];
+    for (let i = 0; i < 8; i++) if ((d[0] >> i) & 1) s.push(four ? `B${(i >> 1) + 1}S${(i % 2) + 1}` : `B${(i >> 2) + 1}S${(i % 4) + 1}`);
+    return one(s.join(","));
+  };
+  const STATIC = {
+    0x01: ["Monitor status since codes cleared", (d) => decMonitor(d, true)],
+    0x02: ["DTC that stored freeze frame", (d) => one(d[0] || d[1] ? dtcStr(d[0], d[1]) : "none")],
+    0x03: ["Fuel system status", (d) => [["sys1", fs(d[0]), ""], ["sys2", d.length > 1 ? fs(d[1]) : null, ""]]],
+    0x04: ["Engine load", fPct], 0x05: ["Coolant temp", fTemp],
+    0x06: ["STFT B1", fTrim], 0x07: ["LTFT B1", fTrim], 0x08: ["STFT B2", fTrim], 0x09: ["LTFT B2", fTrim],
+    0x0a: ["Fuel pressure", (d) => one(d[0] * 3, "kPa")],
+    0x0b: ["MAP", (d) => one(d[0], "kPa")],
+    0x0c: ["RPM", (d) => one(rnd(u16(d) / 4, 1), "rpm")],
+    0x0d: ["Speed", (d) => one(d[0], "km/h")],
+    0x0e: ["Timing advance", (d) => one(d[0] / 2 - 64, "deg")],
+    0x0f: ["Intake air temp", fTemp],
+    0x10: ["MAF", (d) => one(rnd(u16(d) / 100, 2), "g/s")],
+    0x11: ["Throttle position", fPct],
+    0x12: ["Secondary air status", (d) => one(d[0], "code")],
+    0x13: ["O2 sensors present", fSensors(false)],
+    0x1c: ["OBD standard", (d) => one(d[0], "code")],
+    0x1d: ["O2 sensors present", fSensors(true)],
+    0x1e: ["Aux input (PTO)", (d) => one(d[0] & 1)],
+    0x1f: ["Run time since start", (d) => one(u16(d), "s")],
+    0x21: ["Distance with MIL on", (d) => one(u16(d), "km")],
+    0x22: ["Fuel rail pressure (vs vacuum)", (d) => one(rnd(u16(d) * 0.079, 1), "kPa")],
+    0x23: ["Fuel rail pressure (gauge)", (d) => one(u16(d) * 10, "kPa")],
+    0x2c: ["Commanded EGR", fPct], 0x2d: ["EGR error", fTrim],
+    0x2e: ["Commanded evap purge", fPct], 0x2f: ["Fuel tank level", fPct],
+    0x30: ["Warm-ups since codes cleared", (d) => one(d[0], "count")],
+    0x31: ["Distance since codes cleared", (d) => one(u16(d), "km")],
+    0x32: ["Evap vapor pressure", (d) => one(s16(d) / 4, "Pa")],
+    0x33: ["Barometric pressure", (d) => one(d[0], "kPa")],
+    0x3c: ["Catalyst temp B1S1", fCat], 0x3d: ["Catalyst temp B2S1", fCat],
+    0x3e: ["Catalyst temp B1S2", fCat], 0x3f: ["Catalyst temp B2S2", fCat],
+    0x41: ["Monitor status this drive", (d) => decMonitor(d, false)],
+    0x42: ["Module voltage", (d) => one(rnd(u16(d) / 1000, 3), "V")],
+    0x43: ["Absolute load", (d) => one(rnd((u16(d) * 100) / 255, 1), "%")],
+    0x44: ["Commanded lambda", (d) => one(rnd((u16(d) * 2) / 65536, 4))],
+    0x45: ["Relative throttle", fPct], 0x46: ["Ambient air temp", fTemp],
+    0x47: ["Absolute throttle B", fPct], 0x48: ["Absolute throttle C", fPct],
+    0x49: ["Accel pedal D", fPct], 0x4a: ["Accel pedal E", fPct], 0x4b: ["Accel pedal F", fPct],
+    0x4c: ["Commanded throttle actuator", fPct],
+    0x4d: ["Time with MIL on", (d) => one(u16(d), "min")],
+    0x4e: ["Time since codes cleared", (d) => one(u16(d), "min")],
+    0x4f: ["Max values", (d) => [["lambda", d[0], ""], ["O2 V", d[1], "V"], ["O2 mA", d[2], "mA"], ["MAP", d[3] * 10, "kPa"]]],
+    0x50: ["Max MAF", (d) => one(d[0] * 10, "g/s")],
+    0x51: ["Fuel type", (d) => one(d[0] in FUEL_TYPE ? FUEL_TYPE[d[0]] : d[0])],
+    0x52: ["Ethanol percent", fPct],
+    0x53: ["Evap pressure absolute", (d) => one(u16(d) / 200, "kPa")],
+    0x54: ["Evap pressure", (d) => one(s16(d), "Pa")],
+    0x55: ["Secondary O2 STFT", (d) => [["B1", trim(d[0]), "%"], ["B3", trim(d[1]), "%"]]],
+    0x56: ["Secondary O2 LTFT", (d) => [["B1", trim(d[0]), "%"], ["B3", trim(d[1]), "%"]]],
+    0x57: ["Secondary O2 STFT", (d) => [["B2", trim(d[0]), "%"], ["B4", trim(d[1]), "%"]]],
+    0x58: ["Secondary O2 LTFT", (d) => [["B2", trim(d[0]), "%"], ["B4", trim(d[1]), "%"]]],
+    0x59: ["Fuel rail pressure (absolute)", (d) => one(u16(d) * 10, "kPa")],
+    0x5a: ["Relative pedal", fPct], 0x5b: ["Hybrid battery left", fPct], 0x5c: ["Oil temp", fTemp],
+    0x5d: ["Injection timing", (d) => one(rnd(u16(d) / 128 - 210, 2), "deg")],
+    0x5e: ["Fuel rate", (d) => one(rnd(u16(d) / 20, 2), "L/h")],
+    0x61: ["Driver demand torque", (d) => one(d[0] - 125, "%")],
+    0x62: ["Actual torque", (d) => one(d[0] - 125, "%")],
+    0x63: ["Reference torque", (d) => one(u16(d), "Nm")],
+  };
+  // PID 13 = 2 banks x 4 sensors. PID 1D = 4 banks x 2 sensors.
+  const o2loc = (i, ctx) => (ctx.four_bank ? `B${(i >> 1) + 1}S${(i % 2) + 1}` : `B${(i >> 2) + 1}S${(i % 4) + 1}`);
+  function pidInfo(pid, ctx) {
+    if (pid >= 0x14 && pid <= 0x1b)
+      return [`O2 ${o2loc(pid - 0x14, ctx)} narrowband`, (d) => [["V", rnd(d[0] / 200, 3), "V"], ["STFT", d[1] !== 0xff ? trim(d[1]) : null, "%"]]];
+    if (pid >= 0x24 && pid <= 0x2b)
+      return [`O2 ${o2loc(pid - 0x24, ctx)} wideband`, (d) => [["lambda", rnd((u16(d) * 2) / 65536, 4), ""], ["V", rnd((u16(d, 2) * 8) / 65536, 3), "V"]]];
+    if (pid >= 0x34 && pid <= 0x3b)
+      return [`O2 ${o2loc(pid - 0x34, ctx)} wideband (current)`, (d) => [["lambda", rnd((u16(d) * 2) / 65536, 4), ""], ["mA", rnd(u16(d, 2) / 256 - 128, 3), "mA"]]];
+    return STATIC[pid] || null;
+  }
+  function decodePid(pid, data, ctx) {
+    const e = { pid: h2(pid), raw: bytesToHex(data) };
+    const info = pidInfo(pid, ctx);
+    if (!info) { e.name = `PID ${h2(pid)} (no decoder, see raw)`; return e; }
+    e.name = info[0];
+    let vals;
+    try {
+      if (!data.length) throw new Error("no data bytes");
+      vals = info[1](data);
+      if (vals.some((v) => v[1] === undefined || (typeof v[1] === "number" && isNaN(v[1])))) throw new Error("data too short");
+    } catch (ex) { e.decode_error = String(ex.message || ex); return e; }
+    if (vals.length === 1 && vals[0][0] === "") { e.value = vals[0][1]; e.unit = vals[0][2]; }
+    else {
+      e.values = {}; e.units = {};
+      for (const [l, v, u] of vals) { e.values[l] = v; if (u) e.units[l] = u; }
+    }
+    return e;
+  }
+  function flatten(e) {
+    if ("value" in e) return [[e.name, e.value, e.unit || ""]];
+    if (e.values) return Object.entries(e.values).map(([l, v]) => [`${e.name} ${l}`, v, e.units[l] || ""]);
+    return [];
+  }
+  function midName(m) {
+    if (m >= 0x01 && m <= 0x10) return `O2 sensor B${((m - 1) >> 2) + 1}S${((m - 1) % 4) + 1}`;
+    if (m >= 0x21 && m <= 0x24) return `Catalyst B${m - 0x20}`;
+    if (m >= 0x31 && m <= 0x38) return `EGR/VVT ${m - 0x30}`;
+    const names = { 0x39: "Evap cap off", 0x3a: "Evap leak 0.090in", 0x3b: "Evap leak 0.040in", 0x3c: "Evap leak 0.020in", 0x3d: "Purge flow", 0xa1: "Misfire general", 0xb0: "PM filter B1", 0xb1: "PM filter B2" };
+    if (names[m]) return names[m];
+    if (m >= 0x41 && m <= 0x50) return `O2 heater B${((m - 0x41) >> 2) + 1}S${((m - 0x41) % 4) + 1}`;
+    if (m >= 0x61 && m <= 0x64) return `Heated catalyst B${m - 0x60}`;
+    if (m >= 0x71 && m <= 0x74) return `Secondary air ${m - 0x70}`;
+    if (m >= 0x81 && m <= 0x84) return `Fuel system B${m - 0x80}`;
+    if (m >= 0x85 && m <= 0x88) return `Boost pressure B${m - 0x84}`;
+    if (m >= 0xa2 && m <= 0xad) return `Misfire cylinder ${m - 0xa1}`;
+    return `MID ${h2(m)}`;
+  }
+
+  // ===== Collection steps =====
+  const union = (sup) => { const s = new Set(); for (const v of Object.values(sup)) v.forEach((p) => s.add(p)); return [...s].filter((p) => p % 0x20 !== 0).sort((a, b) => a - b); };
+  const supHex = (sup) => { const o = {}; for (const [e, v] of Object.entries(sup)) o[e] = v.map(h2); return o; };
+
+  async function readPidSet(elm, mode, sup, skip, suffix, ctx) {
+    const out = {}, m = parseInt(mode, 16);
+    for (const pid of union(sup)) {
+      const r = await elm.query(mode + h2(pid) + suffix);
+      for (const [ecu, msgs] of Object.entries(r)) {
+        const p = msgs.find((p) => p.length > skip && p[0] === 0x40 + m && p[1] === pid);
+        if (p) (out[ecu] = out[ecu] || {})[h2(pid)] = decodePid(pid, p.slice(skip), ctx);
+      }
+    }
+    return out;
+  }
+  async function readDtcs(elm, mode) {
+    const r = await elm.query(mode, 8000), m = parseInt(mode, 16), out = {};
+    for (const [ecu, msgs] of Object.entries(r)) {
+      const codes = [];
+      for (const p of msgs) {
+        if (!p.length || p[0] !== 0x40 + m) continue;
+        const body = elm.isCan() ? p.slice(2) : p.slice(1); // CAN has count byte.
+        for (let i = 0; i + 1 < body.length; i += 2)
+          if (body[i] || body[i + 1]) { const c = dtcStr(body[i], body[i + 1]); if (!codes.includes(c)) codes.push(c); }
+      }
+      out[ecu] = codes;
+    }
+    return out;
+  }
+  const IPT_SPARK = ["OBDCOND", "IGNCNTR", "CATCOMP1", "CATCOND1", "CATCOMP2", "CATCOND2", "O2SCOMP1", "O2SCOND1", "O2SCOMP2", "O2SCOND2", "EGRCOMP", "EGRCOND", "AIRCOMP", "AIRCOND", "EVAPCOMP", "EVAPCOND", "SO2SCOMP1", "SO2SCOND1", "SO2SCOMP2", "SO2SCOND2"];
+  const MODE09_NAMES = { 0x02: "VIN", 0x04: "Calibration ID", 0x06: "Calibration verification number", 0x08: "In-use performance (spark)", 0x0a: "ECU name", 0x0b: "In-use performance (diesel)" };
+  // Zero bytes split fields (e.g. ECU short name + long name). Show as space.
+  const asciiOf = (b) => b.map((c) => (c >= 32 && c < 127 ? String.fromCharCode(c) : " ")).join("").replace(/\s+/g, " ").trim();
+
+  async function readMode09(elm) {
+    const sup = await elm.supported("09", elm.isCan() ? 2 : 3);
+    const out = { supported: supHex(sup) };
+    for (const pid of union(sup)) {
+      const r = await elm.query("09" + h2(pid), 8000);
+      for (const [ecu, msgs] of Object.entries(r)) {
+        const data = [].concat(...msgs.filter((p) => p.length > 3 && p[0] === 0x49 && p[1] === pid).map((p) => p.slice(3)));
+        if (!data.length) continue;
+        const e = { name: MODE09_NAMES[pid] || `Info type ${h2(pid)}`, raw: bytesToHex(data) };
+        if (pid === 0x02 || pid === 0x0a) e.text = asciiOf(data);
+        else if (pid === 0x04) { e.text = []; for (let i = 0; i < data.length; i += 16) e.text.push(asciiOf(data.slice(i, i + 16))); }
+        else if (pid === 0x06) { e.values = []; for (let i = 0; i < data.length; i += 4) e.values.push(bytesToHex(data.slice(i, i + 4))); }
+        else if (pid === 0x08 && elm.isCan()) { e.counters = {}; for (let i = 0; i + 1 < data.length && i / 2 < IPT_SPARK.length; i += 2) e.counters[IPT_SPARK[i / 2]] = u16(data, i); }
+        (out[ecu] = out[ecu] || {})[h2(pid)] = e;
+      }
+    }
+    return out;
+  }
+  async function readMode06(elm) {
+    if (!elm.isCan()) { await elm.cmd("0600"); return { note: "Not CAN car. Mode 06 raw reply is in transcript." }; }
+    const sup = await elm.supported("06", 2);
+    const out = { supported: supHex(sup) };
+    for (const mid of union(sup)) {
+      const r = await elm.query("06" + h2(mid), 5000);
+      for (const [ecu, msgs] of Object.entries(r)) {
+        for (const p of msgs) {
+          if (p.length < 10 || p[0] !== 0x46) continue;
+          const body = p.slice(1);
+          for (let i = 0; i + 8 < body.length; i += 9) {
+            const rec = body.slice(i, i + 9), uas = rec[2], get = uas >= 0x80 ? s16 : u16;
+            const v = get(rec, 3), lo = get(rec, 5), hi = get(rec, 7);
+            (out[ecu] = out[ecu] || []).push({ mid: h2(rec[0]), test: midName(rec[0]), tid: h2(rec[1]), uas_id: h2(uas), value: v, min: lo, max: hi, outside_limits: v < lo || v > hi, raw: bytesToHex(rec) });
+          }
+        }
+      }
+    }
+    return out;
+  }
+  function pickEngine(sup01) {
+    const keys = Object.keys(sup01);
+    if (keys.includes("7E8")) return "7E8";
+    const k = keys.find((e) => e.endsWith("DAF110") || e === "10");
+    if (k) return k;
+    return keys.length ? keys.reduce((a, b) => (sup01[b].length > sup01[a].length ? b : a)) : null;
+  }
+  function ctxFrom(report) {
+    const s = new Set();
+    const m = (report.supported_pids && report.supported_pids.mode01) || {};
+    for (const v of Object.values(m)) v.forEach((x) => s.add(parseInt(x, 16)));
+    return { four_bank: s.has(0x1d) && !s.has(0x13) };
+  }
+
+  const NOTES = [
+    "Made by obd_dump web (iPhone). Same format as obd_dump.py. Standard OBD-II only (modes 01,02,03,06,07,09,0A). No maker-specific data.",
+    "ECU keys: CAN header of reply. 7E8 = engine (usual). 7E9 = transmission. Legacy: source address. 'ECU' = headers off.",
+    "Fuel trim: plus = ECU adds fuel (sees lean). Minus = ECU removes fuel (sees rich).",
+    "Every decoded PID keeps 'raw' data bytes (hex) so values can be checked.",
+    "live.phases[].rows match live.columns. Column 0 = seconds from phase start. null = no answer.",
+    "live_summary = per phase stats. 'crosses_0.45V' = narrowband O2 switch count.",
+    "mode06 values are raw ints. Scale by uas_id (SAE J1979 unit table). value/min/max all 0 often = test not run.",
+    "transcript = raw adapter text for setup and discovery commands.",
+  ];
+  function newReport() {
+    const d = new Date(), p = (n) => String(n).padStart(2, "0");
+    return {
+      tool: "obd_dump web v1.0", created: isoLocal(d),
+      run_id: `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`,
+      notes_for_reader: NOTES, user_vehicle: "", user_symptoms: "", quick_look: {}, errors: [], transcript: [],
+    };
+  }
+
+  // Full scan. ui.step(id, state, detail). ui.save() after each step.
+  async function fullScan(elm, report, ui) {
+    const step = async (id, label, fn, detail) => {
+      ui.step(id, "run");
+      try { const v = await fn(); ui.step(id, "done", detail ? detail(v) : ""); return v; }
+      catch (ex) { report.errors.push(`${label}: ${ex.message || ex}`); ui.step(id, "fail", ex.message || String(ex)); return null; }
+      finally { ui.save(); }
+    };
+    const sup01 = (await step("sup", "Find supported live PIDs", () => elm.supported("01", 2),
+      (v) => `${union(v).length} values from ${Object.keys(v).length} module(s)`)) || {};
+    if (!Object.keys(sup01).length) throw new Error("The car gave no data. Is the ignition on and the engine running? Is the adapter pushed fully into the port?");
+    report.supported_pids = { mode01: supHex(sup01) };
+    const ctx = ctxFrom(report);
+    const engine = pickEngine(sup01);
+    report.engine_ecu = engine;
+    report.snapshot = (await step("snap", "Read all live PIDs (snapshot)", () => readPidSet(elm, "01", sup01, 2, "", ctx),
+      (v) => `${Object.values(v).reduce((a, x) => a + Object.keys(x).length, 0)} readings`)) || {};
+    report.dtcs = {};
+    ui.step("dtc", "run");
+    for (const [key, mode] of [["stored", "03"], ["pending", "07"], ["permanent", "0A"]]) {
+      try { report.dtcs[key] = await readDtcs(elm, mode); }
+      catch (ex) { report.dtcs[key] = "read failed"; report.errors.push(`Read ${key} codes: ${ex.message || ex}`); }
+    }
+    const all = (k) => (typeof report.dtcs[k] === "object" ? [].concat(...Object.values(report.dtcs[k])) : []);
+    ui.step("dtc", "done", `${all("stored").length} stored, ${all("pending").length} pending, ${all("permanent").length} permanent`);
+    ui.save();
+    report.freeze_frame = (await step("ff", "Read freeze frame", async () => {
+      const sup = await elm.supported("02", 3, "00");
+      report.supported_pids.mode02 = supHex(sup);
+      return readPidSet(elm, "02", sup, 3, "00", ctx);
+    }, (v) => { const n = Object.values(v).reduce((a, x) => a + Object.keys(x).length, 0); return n ? `${n} values stored` : "none stored"; })) || {};
+    report.mode09_vehicle_info = (await step("m09", "Read vehicle info (VIN etc.)", () => readMode09(elm),
+      (v) => { const e = engine && v[engine] && v[engine]["02"]; return e ? `VIN ${e.text}` : "no VIN given"; })) || {};
+    report.mode06_test_results = (await step("m06", "Read on-board test results (mode 06)", () => readMode06(elm),
+      (v) => { const recs = [].concat(...Object.entries(v).filter(([k]) => k !== "supported" && k !== "note").map(([, x]) => x)); return `${recs.length} tests, ${recs.filter((r) => r.outside_limits).length} outside limits`; })) || {};
+    quickLook(report);
+    ui.save();
+    return { ctx, engine };
+  }
+
+  // PIDs for live logging. Order = column order. Only supported ones are used.
+  const range = (a, b) => Array.from({ length: b - a }, (_, i) => a + i);
+  const LIVE_PIDS = [0x0c, 0x0d, 0x05, 0x0f, 0x04, 0x43, 0x03, 0x06, 0x07, 0x08, 0x09, 0x10, 0x0b, 0x33, 0x11, 0x45, 0x0e, 0x44]
+    .concat(range(0x14, 0x1c), range(0x24, 0x2c), range(0x34, 0x3c), [0x0a, 0x22, 0x23, 0x59, 0x2e, 0x2c, 0x42, 0x3c, 0x3d, 0x3e, 0x3f, 0x5e, 0x5c]);
+
+  async function prepareLive(elm, report, engine) {
+    const snap = (report.snapshot || {})[engine] || {};
+    const pids = LIVE_PIDS.filter((p) => snap[h2(p)] && flatten(snap[h2(p)]).length);
+    const cols = ["t"], units = ["s"];
+    for (const p of pids) for (const [c, , u] of flatten(snap[h2(p)])) { cols.push(c); units.push(u); }
+    cols.push("Adapter voltage"); units.push("V");
+    elm.record = false; // Live phase: no raw transcript. File stays small.
+    let single = false;
+    if (elm.isCan() && engine === "7E8" && elm.headers) {
+      // Talk to engine only. Ask for one reply. Faster sampling.
+      if ((await elm.cmd("ATSH7E0")).some((l) => l.toUpperCase().includes("OK"))) {
+        const r = await elm.query("01001");
+        single = (r["7E8"] || []).some((p) => p[0] === 0x41 && p[1] === 0x00);
+      }
+    }
+    if (!report.live) report.live = { columns: cols, units, phases: [] };
+    if (!report.live_summary) report.live_summary = {};
+    return { pids, cols: report.live.columns, single };
+  }
+  async function readVoltage(elm) {
+    for (const l of await elm.cmd("ATRV", 2000)) { const m = l.toUpperCase().match(/(\d+(?:\.\d+)?)\s*V/); if (m) return parseFloat(m[1]); }
+    return null;
+  }
+  async function liveRead(elm, pid, engine, ctx, single) {
+    const r = await elm.query("01" + h2(pid) + (single ? "1" : ""), 2500);
+    const p = (r[engine] || []).find((p) => p.length >= 3 && p[0] === 0x41 && p[1] === pid);
+    return p ? decodePid(pid, p.slice(2), ctx) : null;
+  }
+  async function runPhase(elm, live, key, title, howto, durS, ctx, engine, hooks) {
+    const rows = [], t0 = Date.now(), cap = (durS || 1800) * 1000;
+    const ph = { name: key, title, instructions: howto, started: isoLocal(), rows };
+    try {
+      while (!hooks.stopped() && Date.now() - t0 < cap) {
+        const vals = {};
+        for (const pid of live.pids) {
+          if (hooks.stopped()) break;
+          const e = await liveRead(elm, pid, engine, ctx, live.single);
+          if (e) for (const [c, v] of flatten(e)) vals[c] = v;
+        }
+        if (hooks.stopped()) break;
+        vals["Adapter voltage"] = await readVoltage(elm);
+        const row = [rnd((Date.now() - t0) / 1000, 2)].concat(live.cols.slice(1).map((c) => (c in vals ? vals[c] : null)));
+        rows.push(row);
+        hooks.onRow(row, rows.length, (Date.now() - t0) / 1000);
+      }
+    } catch (ex) { ph.error = String(ex.message || ex); }
+    return ph;
+  }
+  function summarize(cols, rows) {
+    const s = { samples: rows.length };
+    if (rows.length) s.duration_s = rows[rows.length - 1][0];
+    cols.forEach((c, i) => {
+      if (i === 0) return;
+      const vals = rows.map((r) => r[i]).filter((v) => v !== null && v !== undefined);
+      const nums = vals.filter((v) => typeof v === "number");
+      if (nums.length) {
+        const d = { n: nums.length, mean: rnd(nums.reduce((a, b) => a + b, 0) / nums.length, 3), min: Math.min(...nums), max: Math.max(...nums) };
+        if (c.includes("narrowband V") && nums.length > 2) {
+          // Count side changes. Skip samples exactly at 0.45 V.
+          let k = 0, last = 0;
+          for (const x of nums) { const side = Math.sign(x - 0.45); if (side && last && side !== last) k++; if (side) last = side; }
+          d["crosses_0.45V"] = k;
+        }
+        s[c] = d;
+      } else if (vals.length) {
+        const cnt = {}; for (const v of vals) cnt[String(v)] = (cnt[String(v)] || 0) + 1; s[c] = { counts: cnt };
+      }
+    });
+    // Total trim = STFT + LTFT. Shows full fuel correction.
+    for (const b of ["B1", "B2"]) {
+      const si = cols.indexOf("STFT " + b), li = cols.indexOf("LTFT " + b);
+      if (si < 0 || li < 0) continue;
+      const t = rows.filter((r) => r[si] !== null && r[li] !== null).map((r) => r[si] + r[li]);
+      if (t.length) s["Total trim " + b] = { n: t.length, mean: rnd(t.reduce((a, x) => a + x, 0) / t.length, 2), min: rnd(Math.min(...t), 2), max: rnd(Math.max(...t), 2) };
+    }
+    return s;
+  }
+  function quickLook(report) {
+    const q = {}, snap = (report.snapshot || {})[report.engine_ecu] || {};
+    const keep = [0x01, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0b, 0x0c, 0x0f, 0x10, 0x1f, 0x21, 0x30, 0x31, 0x44, 0x4e];
+    for (const pid of Object.keys(snap).sort()) {
+      const n = parseInt(pid, 16);
+      if (keep.includes(n) || (n >= 0x14 && n <= 0x1b) || (n >= 0x24 && n <= 0x2b) || (n >= 0x34 && n <= 0x3b)) {
+        const e = snap[pid]; q[e.name] = "value" in e ? e.value : e.values || "raw " + e.raw;
+      }
+    }
+    const d = report.dtcs || {};
+    for (const k of ["stored", "pending", "permanent"]) if (k in d) q["DTC " + k] = d[k];
+    report.quick_look = q;
+  }
+  // Main part is indented JSON. Live rows use one line per row. Transcript goes last before live.
+  function serialize(report) {
+    const rep = {};
+    for (const k of Object.keys(report)) if (k !== "live" && k !== "transcript") rep[k] = report[k];
+    rep.transcript = report.transcript;
+    let txt = JSON.stringify(rep, null, 1);
+    const live = report.live;
+    if (live) {
+      const phTxt = live.phases.map((ph) => {
+        const parts = Object.keys(ph).filter((k) => k !== "rows").map((k) => `    ${JSON.stringify(k)}: ${JSON.stringify(ph[k])}`);
+        parts.push(`    "rows": [\n${ph.rows.map((r) => "      " + JSON.stringify(r)).join(",\n")}\n    ]`);
+        return "   {\n" + parts.join(",\n") + "\n   }";
+      });
+      const liveTxt = `{\n  "columns": ${JSON.stringify(live.columns)},\n  "units": ${JSON.stringify(live.units)},\n  "phases": [\n${phTxt.join(",\n")}\n  ]\n }`;
+      txt = txt.slice(0, txt.trimEnd().lastIndexOf("}")).trimEnd() + ',\n "live": ' + liveTxt + "\n}";
+    }
+    return txt + "\n";
+  }
+
+  return { ELM, PROTOCOLS, newReport, fullScan, prepareLive, runPhase, summarize, quickLook, serialize, ctxFrom, decodePid, flatten, parseCan, parseLegacy, parseNoHeader, dtcStr, isoLocal, sleep, h2 };
+})();
+if (typeof module !== "undefined") module.exports = Core;
+</script>
+
+<script>
+// ===== Page: Bluetooth link, buttons, gauges, saving. =====
+(() => {
+  // Known BLE layouts on ELM327 clones: [service, notify char, write char].
+  const B = (s) => (s.length === 4 ? `0000${s}-0000-1000-8000-00805f9b34fb` : s);
+  const KNOWN = [
+    ["fff0", "fff1", "fff2"], ["ffe0", "ffe1", "ffe1"], ["18f0", "2af0", "2af1"],
+    ["e7810a71-73ae-499d-8c15-faa9aef0c3f2", "bef8d6c9-9c21-4c9e-b632-bd58c1009f9f", "bef8d6c9-9c21-4c9e-b632-bd58c1009f9f"],
+  ];
+  const SVCS = KNOWN.map((k) => B(k[0])).concat([B("ffb0"), B("ae00"), B("fee7")]);
+  const short = (u) => { u = String(u).toLowerCase(); return u.startsWith("0000") && u.endsWith("-0000-1000-8000-00805f9b34fb") ? u.slice(4, 8) : u; };
+  // Stop a step that hangs. Name the step in the error.
+  const withTimeout = (p, ms, what) => new Promise((res, rej) => {
+    const tm = setTimeout(() => rej(new Error(`${what} did not answer in ${Math.round(ms / 1000)} s`)), ms);
+    p.then((v) => { clearTimeout(tm); res(v); }, (e) => { clearTimeout(tm); rej(e); });
+  });
+  const inFrame = (() => { try { return window.top !== window; } catch (_) { return true; } })();
+
+  class BleTransport {
+    constructor(device) { this.device = device; this.name = "BLE " + (device.name || device.id); this.buf = ""; this.waiter = null; this.dec = new TextDecoder(); }
+    async open(progress) {
+      progress("Opening Bluetooth link to the adapter…");
+      const server = await withTimeout(this.device.gatt.connect(), 20000, "Bluetooth link");
+      progress("Link open. Finding the adapter's data channel…");
+      let svcs = [];
+      try { svcs = await withTimeout(server.getPrimaryServices(), 15000, "Service list"); } catch (_) {
+        for (const u of SVCS) { try { svcs.push(await withTimeout(server.getPrimaryService(u), 5000, "Service")); } catch (_) {} }
+      }
+      this.svcList = svcs.map((s) => short(s.uuid)).join(",");
+      for (const [sv, n, w] of KNOWN) {
+        const s = svcs.find((x) => short(x.uuid) === sv);
+        if (!s) continue;
+        try { return await this._use(await s.getCharacteristic(B(n)), await s.getCharacteristic(B(w))); } catch (_) {}
+      }
+      // Fallback. First custom service with notify + write.
+      for (const s of svcs) {
+        if (["1800", "1801", "180a", "180f"].includes(short(s.uuid))) continue;
+        let cs = []; try { cs = await s.getCharacteristics(); } catch (_) { continue; }
+        const nt = cs.find((c) => c.properties.notify || c.properties.indicate);
+        const wr = cs.find((c) => c.properties.write || c.properties.writeWithoutResponse);
+        if (nt && wr) return this._use(nt, wr);
+      }
+      throw new Error(`No OBD data channel found (services seen: ${this.svcList || "none"})`);
+    }
+    async _use(rx, tx) {
+      this.rx = rx; this.tx = tx; this.noResp = !!tx.properties.writeWithoutResponse;
+      rx.addEventListener("characteristicvaluechanged", (e) => {
+        const v = e.target.value;
+        this.buf += this.dec.decode(new Uint8Array(v.buffer, v.byteOffset, v.byteLength));
+        if (this.waiter && this.buf.includes(">")) { const w = this.waiter; this.waiter = null; w(); }
+      });
+      await withTimeout(rx.startNotifications(), 10000, "Data channel");
+    }
+    clear() { this.buf = ""; }
+    async write(s) {
+      const d = new TextEncoder().encode(s);
+      // BLE packets are small. Send 20 bytes at a time.
+      for (let i = 0; i < d.length; i += 20) {
+        const c = d.slice(i, i + 20);
+        if (this.noResp && this.tx.writeValueWithoutResponse) await this.tx.writeValueWithoutResponse(c);
+        else await this.tx.writeValue(c);
+      }
+    }
+    readUntilPrompt(ms) {
+      return new Promise((res) => {
+        if (this.buf.includes(">")) return res();
+        const timer = setTimeout(() => { this.waiter = null; res(); }, ms);
+        this.waiter = () => { clearTimeout(timer); res(); };
+      }).then(() => { const b = this.buf; this.buf = ""; return b; });
+    }
+    close() { try { this.device.gatt.disconnect(); } catch (_) {} }
+  }
+
+  // ----- State -----
+  const $ = (id) => document.getElementById(id);
+  const KEY = "obd_dump_web_v1";
+  const S = { device: null, t: null, elm: null, connected: false, report: null, scanDone: false, ctx: { four_bank: false }, engine: null,
+    live: null, liveConn: -1, conn: 0, busy: false, stop: false, activePhase: null, lock: null, stepState: {} };
+  const STEPS = [
+    ["init", "Wake adapter and find protocol"], ["sup", "Find supported values"], ["snap", "Read every live value"],
+    ["dtc", "Read trouble codes"], ["ff", "Read freeze frame"], ["m09", "Read VIN and module info"], ["m06", "Read on-board test results"],
+  ];
+  const PHASES = [
+    ["idle_warm", "Warm idle", "Engine warm, idling. Foot off the pedal. A/C off. Lights off.", 90],
+    ["rpm_2500", "Hold 2500 RPM", "Park or neutral, parking brake on. Hold the engine at about 2500 RPM, steady.", 60],
+    ["drive", "Drive log (optional)", "Only with a passenger holding the phone. Drive normally. Tap Stop when done.", null],
+  ];
+
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify({ report: S.report, scanDone: S.scanDone, steps: S.stepState })); } catch (_) {}
+    renderSave();
+  }
+  function load() {
+    try { const v = JSON.parse(localStorage.getItem(KEY) || "null"); if (v && v.report && v.report.run_id) return v; } catch (_) {}
+    return null;
+  }
+
+  // ----- Rendering -----
+  function setConn(state, text) {
+    const c = $("connChip"); c.dataset.s = state; c.textContent = text;
+    $("btnConnect").textContent = S.connected ? "Connected" : "Connect adapter";
+    $("btnConnect").disabled = S.connected || state === "busy";
+    $("btnScan").disabled = !S.connected || S.busy;
+  }
+  function connErr(t) { const e = $("connErr"); e.hidden = !t; e.textContent = t || ""; }
+  function renderSteps() {
+    $("steps").innerHTML = "";
+    for (const [id, label] of STEPS) {
+      const st = S.stepState[id] || {};
+      const li = document.createElement("li"); li.dataset.s = st.s || "";
+      li.innerHTML = `<span class="ic" aria-hidden="true"></span><span><span class="t"></span><span class="d"></span></span>`;
+      li.querySelector(".t").textContent = label;
+      li.querySelector(".d").textContent = st.d || "";
+      $("steps").appendChild(li);
+    }
+  }
+  function setStep(id, s, d) { S.stepState[id] = { s, d: d || "" }; renderSteps(); }
+  function renderCodes() {
+    const d = (S.report && S.report.dtcs) || null;
+    const box = $("codes"); box.innerHTML = "";
+    if (!d) { $("glance").hidden = true; return; }
+    $("glance").hidden = false;
+    const add = (code, kind) => { const s = document.createElement("span"); s.className = "code" + (kind === "pending" ? " p" : ""); s.textContent = code + (kind !== "stored" ? ` (${kind})` : ""); box.appendChild(s); };
+    let n = 0;
+    for (const k of ["stored", "pending", "permanent"]) if (typeof d[k] === "object") for (const codes of Object.values(d[k])) for (const c of codes) { add(c, k); n++; }
+    if (!n) { const s = document.createElement("span"); s.className = "hint"; s.textContent = "No trouble codes stored."; box.appendChild(s); }
+  }
+  function renderPhases() {
+    const box = $("phases"); box.innerHTML = "";
+    const ect = S.report && S.report.snapshot && S.report.snapshot[S.engine] && S.report.snapshot[S.engine]["05"];
+    for (const [key, title, howto, dur] of PHASES) {
+      const done = S.report && S.report.live && S.report.live.phases.find((p) => p.name === key);
+      const active = S.activePhase === key;
+      const el = document.createElement("div"); el.className = "phase"; el.dataset.active = active ? "1" : "0"; el.id = "ph-" + key;
+      let note = howto;
+      if (key === "idle_warm" && ect && typeof ect.value === "number" && ect.value < 75) note += ` Coolant is ${ect.value} °C now. Best data needs a warm engine (80–100 °C).`;
+      el.innerHTML = `<div class="head"><h3></h3><span class="state"></span></div><p class="hint"></p><div class="bar"><i></i></div><div class="row"></div>`;
+      el.querySelector("h3").textContent = title + (dur ? ` · ${dur} s` : "");
+      el.querySelector(".hint").textContent = note;
+      el.querySelector(".state").textContent = active ? "Logging…" : done ? `Done · ${done.rows.length} samples${done.error ? " · cut short" : ""}` : "Not run";
+      el.querySelector(".bar > i").style.width = done && !active ? "100%" : "0";
+      const row = el.querySelector(".row");
+      const b = document.createElement("button"); b.type = "button";
+      if (active) { b.textContent = "Stop"; b.className = "primary"; b.onclick = () => { S.stop = true; b.disabled = true; b.textContent = "Stopping…"; }; }
+      else { b.textContent = done ? "Run again" : "Start"; b.className = done ? "" : "primary"; b.disabled = !S.connected || !S.scanDone || S.busy; b.onclick = () => startPhase(key, title, howto, dur); }
+      row.appendChild(b);
+      box.appendChild(el);
+    }
+  }
+  function renderSave() {
+    const has = !!(S.report && S.report.snapshot);
+    for (const id of ["btnSaveClaude", "btnSaveFile", "btnCopy"]) $(id).disabled = !has || S.busy;
+    if (!has) { $("sizeNote").textContent = "No data yet. Run the full scan first."; return; }
+    const ph = (S.report.live && S.report.live.phases) || [];
+    const kb = Math.round(Core.serialize(S.report).length / 1024);
+    $("sizeNote").textContent = `Report ready: full scan${ph.length ? " + " + ph.map((p) => p.title).join(", ") : ""} · ${kb} KB. Save it when you're done logging.`;
+  }
+  function saveMsg(t, bad) { const m = $("saveMsg"); m.hidden = !t; m.textContent = t || ""; m.className = "msg" + (bad ? " bad" : ""); }
+
+  // ----- Gauges -----
+  function buildGauges(cols) {
+    const g = $("gauges"); g.innerHTML = "";
+    const want = [["RPM", "RPM", "rpm"], ["Coolant temp", "Coolant", "°C"], ["MAF", "MAF", "g/s"], ["MAP", "MAP", "kPa"]];
+    const o2 = cols.find((c) => /narrowband V$/.test(c)) || cols.find((c) => /wideband.* lambda$/.test(c));
+    if (o2) want.push([o2, o2.replace(/^O2 /, "O2 ").replace(/ narrowband V$/, " volts").replace(/ lambda$/, " λ"), o2.endsWith("V") ? "V" : ""]);
+    for (const [col, label, unit] of want) {
+      if (!cols.includes(col)) continue;
+      const d = document.createElement("div"); d.className = "g"; d.dataset.col = col;
+      d.innerHTML = `<div class="k"></div><div><span class="v">–</span><span class="u"></span></div>`;
+      d.querySelector(".k").textContent = label; d.querySelector(".u").textContent = unit;
+      g.appendChild(d);
+    }
+    const t = $("trims"); t.innerHTML = "";
+    for (const b of ["B1", "B2"]) for (const k of ["STFT", "LTFT", "Total"]) {
+      if (!cols.includes("STFT " + b)) continue;
+      if (k === "LTFT" && !cols.includes("LTFT " + b)) continue;
+      if (k === "Total" && !cols.includes("LTFT " + b)) continue;
+      const r = document.createElement("div"); r.className = "trim"; r.dataset.k = `${k} ${b}`;
+      r.innerHTML = `<span class="k"></span><div class="scale"><i></i></div><span class="val">–</span>`;
+      r.querySelector(".k").textContent = `${k} ${b}`;
+      t.appendChild(r);
+    }
+  }
+  function updateGauges(cols, row) {
+    const v = (c) => { const i = cols.indexOf(c); return i < 0 ? null : row[i]; };
+    for (const d of $("gauges").children) { const x = v(d.dataset.col); d.querySelector(".v").textContent = x === null ? "–" : typeof x === "number" ? (Math.abs(x) >= 100 ? Math.round(x) : x) : x; }
+    for (const r of $("trims").children) {
+      const [k, b] = r.dataset.k.split(" ");
+      const x = k === "Total" ? (v("STFT " + b) !== null && v("LTFT " + b) !== null ? v("STFT " + b) + v("LTFT " + b) : null) : v(k + " " + b);
+      const i = r.querySelector(".scale > i");
+      if (x === null) { r.querySelector(".val").textContent = "–"; i.style.width = "0"; continue; }
+      const c = Math.max(-25, Math.min(25, x)), pos = 50 + (c / 25) * 50;
+      i.style.left = Math.min(50, pos) + "%"; i.style.width = Math.abs(pos - 50) + "%";
+      i.dataset.z = Math.abs(x) > 20 ? "bad" : Math.abs(x) > 10 ? "warn" : "ok";
+      r.querySelector(".val").textContent = (x > 0 ? "+" : "") + x.toFixed(1) + "%";
+    }
+  }
+
+  // ----- Raw log -----
+  const raw = [];
+  function rawLog(c, lines) {
+    raw.push("> " + c, ...lines.map((l) => "  " + l));
+    if (raw.length > 400) raw.splice(0, raw.length - 400);
+    if ($("rawlog").closest("details").open) $("rawlog").textContent = raw.join("\n");
+  }
+  $("rawlog").closest("details").addEventListener("toggle", () => { $("rawlog").textContent = raw.join("\n") || "Nothing yet."; });
+
+  // ----- Connect -----
+  async function connect() {
+    connErr("");
+    if (!navigator.bluetooth || !navigator.bluetooth.requestDevice) {
+      connErr("This browser can't use Bluetooth. On iPhone, open this page in the Bluefy app (free in the App Store). Safari and the Claude app can't reach Bluetooth devices.");
+      return;
+    }
+    let device;
+    $("connInfo").textContent = "Pick your adapter in the list…";
+    const slow = setTimeout(() => {
+      connErr("Waiting for the adapter choice to reach this page (30 s so far). If you already tapped the adapter, Bluefy did not pass it on" + (inFrame ? " to this page inside Claude's frame" : "") + ". Tell Claude this message.");
+    }, 30000);
+    try { device = await navigator.bluetooth.requestDevice({ acceptAllDevices: true, optionalServices: SVCS }); }
+    catch (e) {
+      clearTimeout(slow);
+      if (e && e.name === "NotFoundError") connErr("No adapter picked. Tap Connect again and choose the OBD adapter (often named OBDII, OBDBLE, V-LINK or similar).");
+      else if (e && (e.name === "SecurityError" || e.name === "NotAllowedError")) connErr("Bluetooth is blocked inside this page view. Tell Claude: “Bluetooth is blocked in the page.” Detail: " + (e.message || e.name));
+      else connErr("Could not open the Bluetooth picker: " + ((e && e.message) || e));
+      return;
+    }
+    clearTimeout(slow); connErr("");
+    $("connInfo").textContent = `Adapter picked: ${device.name || "no name"}. Connecting…`;
+    S.device = device;
+    device.addEventListener("gattserverdisconnected", onDisconnect);
+    await openDevice();
+  }
+  async function openDevice() {
+    setConn("busy", "Connecting…"); $("discBanner").hidden = true;
+    S.busy = true; renderPhases(); renderSave();
+    let stage = "link";
+    try {
+      const t = new BleTransport(S.device);
+      stage = "link";
+      await t.open((m) => { $("connInfo").textContent = m; });
+      stage = "adapter";
+      $("connInfo").textContent = "Data channel open. Waking the adapter…";
+      S.t = t; S.conn++;
+      S.elm = new Core.ELM(t, S.report.transcript); S.elm.onRaw = rawLog; S.elm.record = true;
+      setStep("init", "run");
+      const info = await S.elm.init((m) => { $("connInfo").textContent = m; });
+      if (S.report.adapter) S.report.errors.push(`Reconnected to adapter at ${Core.isoLocal()}.`);
+      S.report.adapter = info;
+      S.connected = true;
+      $("connInfo").textContent = `${S.device.name || "Adapter"} · ${info.ATI || "ELM327"} · ${info.protocol_name}`;
+      setStep("init", "done", info.protocol_name);
+      setConn("ok", "Connected");
+      persist();
+      S.busy = false;
+      if (!S.scanDone) await runScan(); else { S.elm.record = false; }
+    } catch (e) {
+      S.connected = false;
+      setStep("init", "fail", (e && e.message) || String(e));
+      setConn("bad", "Not connected");
+      const why = (e && e.message) || String(e);
+      connErr(stage === "link"
+        ? `Could not open the Bluetooth link: ${why}. Force-quit Car Scanner and any other OBD app (swipe it away), then tap Connect again. [${inFrame ? "frame" : "top"}]`
+        : `The adapter linked but stopped answering: ${why}. Unplug the adapter for 10 seconds, plug it back in, then tap Connect again. [${inFrame ? "frame" : "top"}]`);
+    } finally { S.busy = false; renderPhases(); renderSave(); setConn($("connChip").dataset.s, $("connChip").textContent); }
+  }
+  function onDisconnect() {
+    S.connected = false;
+    setConn("bad", "Disconnected");
+    $("discBanner").hidden = false;
+    renderPhases();
+  }
+
+  // ----- Scan -----
+  async function runScan() {
+    if (!S.connected || S.busy) return;
+    S.busy = true; S.elm.record = true; S.live = null; renderPhases(); renderSave(); setConn("ok", "Connected");
+    for (const [id] of STEPS.slice(1)) S.stepState[id] = {};
+    renderSteps();
+    try {
+      const r = await Core.fullScan(S.elm, S.report, { step: setStep, save: persist });
+      S.ctx = r.ctx; S.engine = r.engine; S.scanDone = true;
+    } catch (e) {
+      S.report.errors.push("Scan stopped: " + ((e && e.message) || e));
+      connErr((e && e.message) || String(e));
+    } finally {
+      S.elm.record = false; S.busy = false; persist(); renderCodes(); renderPhases(); setConn(S.connected ? "ok" : "bad", S.connected ? "Connected" : "Disconnected");
+    }
+  }
+
+  // ----- Live phases -----
+  async function startPhase(key, title, howto, dur) {
+    if (!S.connected || S.busy) return;
+    S.busy = true; S.stop = false; S.activePhase = key; renderPhases(); renderSave();
+    try { if (navigator.wakeLock) S.lock = await navigator.wakeLock.request("screen"); } catch (_) { S.lock = null; }
+    try {
+      if (!S.live || S.liveConn !== S.conn) { S.live = await Core.prepareLive(S.elm, S.report, S.engine); S.liveConn = S.conn; }
+      buildGauges(S.live.cols); $("gaugePanel").hidden = false;
+      const bar = () => document.querySelector(`#ph-${key} .bar > i`), st = () => document.querySelector(`#ph-${key} .state`);
+      const ph = await Core.runPhase(S.elm, S.live, key, title, howto, dur, S.ctx, S.engine, {
+        stopped: () => S.stop || !S.connected,
+        onRow: (row, n, secs) => {
+          updateGauges(S.live.cols, row);
+          if (bar()) bar().style.width = dur ? Math.min(100, (secs / dur) * 100) + "%" : ((secs / 60) % 1) * 100 + "%";
+          if (st()) st().textContent = `Logging · ${Math.round(secs)} s · ${n} samples`;
+        },
+      });
+      S.report.live.phases = S.report.live.phases.filter((p) => p.name !== key).concat([ph]);
+      S.report.live_summary[key] = Core.summarize(S.report.live.columns, ph.rows);
+      if (ph.error) S.report.errors.push(`${title}: ${ph.error}`);
+    } catch (e) {
+      S.report.errors.push(`${title}: ${(e && e.message) || e}`);
+    } finally {
+      try { if (S.lock) await S.lock.release(); } catch (_) {}
+      S.lock = null; S.activePhase = null; S.busy = false; persist(); renderPhases();
+    }
+  }
+
+  // ----- Saving -----
+  function finalReport() {
+    S.report.user_vehicle = $("vehicle").value.trim();
+    S.report.user_symptoms = $("symptoms").value.trim();
+    S.report.finished = Core.isoLocal();
+    Core.quickLook(S.report);
+    persist();
+    return Core.serialize(S.report);
+  }
+  let dbP = null, dlP = null;
+  const cap = (name) => (window.claude && window.claude.use ? window.claude.use(name).catch(() => null) : Promise.resolve(null));
+  async function saveClaude() {
+    saveMsg("");
+    const db = await (dbP = dbP || cap("db"));
+    if (!db) { saveMsg("Saving straight to Claude only works when this page is open from Claude while you're signed in. Use Save file or Copy report instead.", true); return; }
+    const txt = finalReport(), id = S.report.run_id, CH = 90000, n = Math.ceil(txt.length / CH);
+    $("btnSaveClaude").disabled = true; saveMsg(`Saving 0 of ${n} parts…`);
+    try {
+      for (let i = 0; i < n; i++) {
+        await db.doc(`runs/${id}/chunks/c${String(i).padStart(3, "0")}`).set({ i, text: txt.slice(i * CH, (i + 1) * CH) });
+        saveMsg(`Saving ${i + 1} of ${n} parts…`);
+      }
+      await db.doc(`runs/${id}`).set({ run_id: id, created: S.report.created, saved_at: Core.isoLocal(), vehicle: S.report.user_vehicle, chunks: n, chars: txt.length });
+      saveMsg(`Saved to Claude (report ${id}). Go back to the chat and say “I saved the scan.”`);
+    } catch (e) {
+      const c = e && e.code;
+      saveMsg(c === "quota_exceeded" ? "Claude's storage for this page is full. Use Save file or Copy report instead." : "Saving to Claude failed: " + ((e && e.message) || e) + ". Use Save file or Copy report instead.", true);
+    } finally { $("btnSaveClaude").disabled = false; }
+  }
+  async function saveFile() {
+    saveMsg("");
+    const txt = finalReport(), name = `obd_report_${S.report.run_id}.json`;
+    const dl = await (dlP = dlP || cap("downloads"));
+    if (dl) {
+      try { await dl.save({ filename: name, data: txt }); saveMsg("File saved. Attach it in the Claude chat."); }
+      catch (e) { saveMsg(e && e.code === "declined" ? "Save cancelled." : "Could not save the file: " + ((e && e.message) || e) + ". Use Copy report instead.", e && e.code !== "declined"); }
+      return;
+    }
+    // Page opened outside Claude: use the phone's share sheet, else a plain download.
+    try {
+      const f = new File([txt], name, { type: "application/json" });
+      if (navigator.canShare && navigator.canShare({ files: [f] })) { await navigator.share({ files: [f], title: name }); saveMsg("Shared. Attach the file in the Claude chat."); return; }
+    } catch (e) { if (e && e.name === "AbortError") { saveMsg("Save cancelled."); return; } }
+    try {
+      const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: "application/json" })); a.download = name;
+      document.body.appendChild(a); a.click(); a.remove();
+      saveMsg("Download started. If nothing happened, use Copy report.");
+    } catch (_) { saveMsg("This browser can't save files. Use Copy report instead.", true); }
+  }
+  function copyReport() {
+    saveMsg("");
+    const txt = finalReport(), box = $("copyBox");
+    const fallback = () => { box.hidden = false; box.value = txt; box.focus(); box.select(); saveMsg("Copy didn't work automatically. The report is in the box below and selected: tap Copy, then paste it into the Claude chat.", true); };
+    try {
+      navigator.clipboard.writeText(txt).then(() => { box.hidden = true; saveMsg(`Copied ${Math.round(txt.length / 1024)} KB. Paste it into the Claude chat.`); }, fallback);
+    } catch (_) { fallback(); }
+  }
+  let resetArmed = false;
+  function resetReport() {
+    if (S.busy) return;
+    if (!resetArmed) { resetArmed = true; $("btnReset").textContent = "Tap again to erase this report"; setTimeout(() => { resetArmed = false; $("btnReset").textContent = "Start a new report"; }, 5000); return; }
+    resetArmed = false; $("btnReset").textContent = "Start a new report";
+    S.report = Core.newReport(); S.report.transcript = S.report.transcript || [];
+    if (S.elm) S.elm.transcript = S.report.transcript;
+    S.scanDone = false; S.live = null; S.stepState = {}; $("recoverMsg").hidden = true;
+    persist(); renderSteps(); renderCodes(); renderPhases(); saveMsg("");
+    if (S.connected) runScan();
+  }
+
+  // ----- Start -----
+  const saved = load();
+  if (saved) {
+    S.report = saved.report; S.scanDone = !!saved.scanDone; S.stepState = saved.steps || {};
+    for (const k of Object.keys(S.stepState)) if (S.stepState[k].s === "run") S.stepState[k] = { s: "fail", d: "interrupted" };
+    S.engine = S.report.engine_ecu || null; S.ctx = Core.ctxFrom(S.report);
+    $("vehicle").value = S.report.user_vehicle || ""; $("symptoms").value = S.report.user_symptoms || "";
+    if (S.report.snapshot) { const r = $("recoverMsg"); r.hidden = false; r.textContent = `Your report from ${S.report.created.replace("T", " ")} is still here. Connect again to add logging, or save it below.`; }
+  } else S.report = Core.newReport();
+  const keepText = () => { S.report.user_vehicle = $("vehicle").value; S.report.user_symptoms = $("symptoms").value; try { localStorage.setItem(KEY, JSON.stringify({ report: S.report, scanDone: S.scanDone, steps: S.stepState })); } catch (_) {} };
+  $("vehicle").addEventListener("change", keepText); $("symptoms").addEventListener("change", keepText);
+  $("btnConnect").onclick = connect;
+  $("btnReconnect").onclick = () => { if (S.device) openDevice(); };
+  $("btnScan").onclick = runScan;
+  $("btnSaveClaude").onclick = saveClaude;
+  $("btnSaveFile").onclick = saveFile;
+  $("btnCopy").onclick = copyReport;
+  $("btnReset").onclick = resetReport;
+  // Outside Claude (e.g. GitHub Pages): no Claude storage. Hide that button.
+  if (!(window.claude && window.claude.use)) {
+    $("btnSaveClaude").hidden = true;
+    $("btnCopy").className = "primary";
+    $("btnSaveClaude").insertAdjacentElement("afterend", $("btnCopy"));
+  }
+  if (!navigator.bluetooth) connErr("This browser can't use Bluetooth. On iPhone, open this page in the Bluefy app (free in the App Store). Safari and the Claude app can't reach Bluetooth devices.");
+  renderSteps(); renderCodes(); renderPhases(); renderSave(); setConn("", "Not connected");
+})();
+</script>
+
+</body>
+</html>
